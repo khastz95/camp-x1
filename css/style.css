@@ -1003,6 +1003,19 @@ table.t td.d { color: var(--shame); }
   text-transform: uppercase;
 }
 .pcard input { height: 38px; padding: 0 10px; }
+.pcard .photo-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  background: rgba(62, 199, 255, 0.08);
+  color: var(--cyan);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
 .hint { color: var(--mute); font-size: 13px; }
 
 .liga-facts div, .bout, .rank-card, .pcard, .br-slot, .po-seed, .seed, .h2h-wrap, .table-card {

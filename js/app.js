@@ -919,13 +919,14 @@ function renderMurais() {
 
 function renderPlayers() {
   document.getElementById("tab-players").innerHTML = `
-    <div class="head"><h2>Elenco</h2><p>Cole o link da foto. Ela aparece na liga, na tabela, nos playoffs e nos murais.</p></div>
+    <div class="head"><h2>Elenco</h2><p>Envie a foto ou cole um link. Ela aparece na liga, na tabela, nos playoffs e nos murais.</p></div>
     <div class="players">
       ${state.players.map((p) => `
         <article class="pcard">
           ${pic(p)}
           <h3>${esc(p.name)}</h3>
           <label>Nick<input data-p="${esc(p.id)}" data-k="name" value="${esc(p.name)}" /></label>
+          <label class="file photo-file editor-only">Enviar foto<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-p="${esc(p.id)}" data-k="photo-file" hidden /></label>
           <label>Foto URL<input data-p="${esc(p.id)}" data-k="photo" value="${esc(p.photo)}" placeholder="https://" /></label>
           <label>Cor<input type="color" data-p="${esc(p.id)}" data-k="color" value="${esc(p.color)}" /></label>
         </article>`).join("")}
@@ -1058,7 +1059,7 @@ document.getElementById("pin-form").addEventListener("submit", async (e) => {
 document.getElementById("tab-players").addEventListener("input", (e) => {
   if (cloud && !canEdit) return;
   const t = e.target;
-  if (!t.dataset.p) return;
+  if (!t.dataset.p || t.dataset.k === "photo-file") return;
   const p = state.players.find((x) => x.id === t.dataset.p);
   if (!p) return;
   p[t.dataset.k] = t.value;
@@ -1068,8 +1069,60 @@ document.getElementById("tab-players").addEventListener("input", (e) => {
 
 document.getElementById("tab-players").addEventListener("change", (e) => {
   const t = e.target;
+  if (t.dataset.k === "photo-file") {
+    const file = t.files && t.files[0];
+    t.value = "";
+    if (file) uploadPhoto(t.dataset.p, file);
+    return;
+  }
   if (t.dataset.p && (t.dataset.k === "name" || t.dataset.k === "photo")) renderAll();
 });
+
+async function uploadPhoto(playerId, file) {
+  if (cloud && !canEdit) return;
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return;
+  if (file.size > 1.5 * 1024 * 1024) {
+    flash("A foto deve ter até 1,5 MB");
+    return;
+  }
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  if (!cloud) {
+    p.photo = data;
+    save();
+    renderAll();
+    flash("Foto salva neste navegador");
+    return;
+  }
+  try {
+    const r = await fetch("/api/photo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-edit-pin": editPin },
+      body: JSON.stringify({ playerId, mime: file.type, data, pin: editPin })
+    });
+    const json = await r.json().catch(() => ({}));
+    if (r.status === 401) {
+      lockEdit();
+      flash("PIN inválido");
+      return;
+    }
+    if (!r.ok) {
+      flash(json.error || "Não enviou a foto");
+      return;
+    }
+    p.photo = json.url;
+    save();
+    renderAll();
+    flash("Foto no banco");
+  } catch {
+    flash("Não enviou a foto");
+  }
+}
 
 document.getElementById("week-label").addEventListener("input", (e) => {
   if (cloud && !canEdit) return;
