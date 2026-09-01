@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CAMPEONATO 1v1 — ETERNAL PRATAS (CLOSED)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="img/logo.png?v=4" />
+</head>
+<body>
+  <div class="chrome">
+    <div class="wrap chrome-inner">
+      <div class="brand">
+        <img class="logo" src="img/logo.png?v=4" alt="Eternal Pratas" />
+        <div>
+          <small>Counter-Strike 2 · Closed</small>
+          <h1>Campeonato 1v1</h1>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Seções">
+        <div class="nav-track">
+          <button class="is-on" data-tab="liga" type="button">Liga</button>
+          <button data-tab="tabela" type="button">Tabela</button>
+          <button data-tab="playoffs" type="button">Playoffs</button>
+          <button data-tab="murais" type="button">Murais</button>
+          <button data-tab="players" type="button">Elenco</button>
+        </div>
+      </nav>
+
+      <div class="chrome-actions">
+        <label class="week-field">
+          <span>Semana</span>
+          <input id="week-label" value="Semana 1" />
+        </label>
+        <button type="button" id="btn-new-week">Nova semana</button>
+        <button type="button" id="btn-save">Salvar</button>
+        <details class="more">
+          <summary>Mais</summary>
+          <div class="more-panel">
+            <p class="save-hint" id="save-hint">Os dados salvam sozinhos neste navegador.</p>
+            <button type="button" id="btn-export">Baixar backup</button>
+            <label class="file">Carregar backup<input type="file" id="input-import" accept="application/json" hidden /></label>
+            <button type="button" id="btn-reset" class="danger">Zerar</button>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <section id="tab-liga" class="panel is-on"></section>
+    <section id="tab-tabela" class="panel"></section>
+    <section id="tab-playoffs" class="panel"></section>
+    <section id="tab-murais" class="panel"></section>
+    <section id="tab-players" class="panel"></section>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="js/app.js"></script>
+</body>
+</html>
