@@ -1036,31 +1036,71 @@ function openDrawModal(show) {
   const modal = document.getElementById("draw-modal");
   if (!modal) return;
   modal.hidden = !show;
+  document.body.classList.toggle("draw-open", show);
   if (!show) drawToken += 1;
 }
 
-function renderDrawWheel(ids, spinning) {
-  const wheel = document.getElementById("draw-wheel");
-  if (!wheel) return;
-  wheel.classList.toggle("is-spin", spinning);
-  wheel.innerHTML = ids.map((id) => pic(player(id), "pic-md")).join("");
+function setDrawDots(active, total = 5) {
+  const dots = document.getElementById("draw-dots");
+  if (!dots) return;
+  [...dots.children].forEach((el, i) => {
+    el.classList.toggle("is-on", i === active);
+    el.classList.toggle("is-done", i < active);
+  });
+}
+
+function renderDrawOrbit(ids) {
+  const arena = document.getElementById("draw-arena");
+  if (!arena) return;
+  arena.className = "draw-arena is-orbit";
+  arena.innerHTML = `<div class="draw-orbit">${ids.map((id, i) => {
+    const p = player(id);
+    const angle = (360 / ids.length) * i;
+    return `<div class="draw-sat" style="--a:${angle}deg">${pic(p, "pic-lg")}<b>${esc(p.name)}</b></div>`;
+  }).join("")}<div class="draw-orbit-core">1v1</div></div>`;
   bindImgs();
 }
 
-function renderDrawRounds(rounds) {
+function fightCard(g) {
+  const a = player(g.p1);
+  const b = player(g.p2);
+  return `<article class="fight">
+    <div class="fight-p left">${pic(a, "pic-xl")}<b>${esc(a.name)}</b></div>
+    <div class="fight-mid"><span>VS</span><em>MD3</em></div>
+    <div class="fight-p right">${pic(b, "pic-xl")}<b>${esc(b.name)}</b></div>
+  </article>`;
+}
+
+function renderDrawClash(round) {
+  const arena = document.getElementById("draw-arena");
+  if (!arena) return;
+  const bye = player(round.bye);
+  arena.className = "draw-arena is-clash";
+  arena.innerHTML = `
+    <div class="draw-clash">
+      <div class="draw-round-label">Rodada ${round.round} <span>de 5</span></div>
+      ${round.games.map(fightCard).join("")}
+      <div class="draw-bye-hero">${pic(bye, "pic-md")}<div><small>Folga</small><b>${esc(bye.name)}</b></div></div>
+    </div>`;
+  bindImgs();
+}
+
+function renderDrawBoard(rounds, revealed) {
   const box = document.getElementById("draw-rounds");
   if (!box) return;
-  box.innerHTML = rounds.map((rd) => {
+  box.innerHTML = rounds.map((rd, i) => {
     const bye = player(rd.bye);
+    const on = i < revealed;
+    const live = i === revealed - 1;
     const games = rd.games.map((g) => {
       const a = player(g.p1);
       const b = player(g.p2);
       return `<div class="draw-pair">${pic(a, "pic-xs")}<b>${esc(a.name)}</b><span class="draw-vs">×</span>${pic(b, "pic-xs")}<b>${esc(b.name)}</b></div>`;
     }).join("");
-    return `<article class="draw-round">
-      <strong>Rodada ${rd.round}</strong>
-      <div class="draw-games">${games}</div>
-      <div class="draw-bye">${pic(bye, "pic-xs")}<span>Folga ${esc(bye.name)}</span></div>
+    return `<article class="draw-mini ${on ? "is-on" : ""} ${live ? "is-live" : ""}">
+      <strong>R${rd.round}</strong>
+      <div class="draw-games">${on ? games : "<span class=\"draw-wait\">…</span>"}</div>
+      <div class="draw-bye">${on ? `${pic(bye, "pic-xs")}<span>${esc(bye.name)}</span>` : ""}</div>
     </article>`;
   }).join("");
   bindImgs();
@@ -1074,25 +1114,44 @@ async function startDraw() {
   pendingDraw = null;
   openDrawModal(true);
   const status = document.getElementById("draw-status");
+  const title = document.getElementById("draw-title");
   const ok = document.getElementById("draw-ok");
-  const roundsBox = document.getElementById("draw-rounds");
+  const arena = document.getElementById("draw-arena");
   if (ok) ok.hidden = true;
-  if (roundsBox) roundsBox.innerHTML = "";
-  if (status) status.textContent = "Embaralhando o elenco...";
+  if (title) title.textContent = "Sorteio da liga";
+  setDrawDots(-1);
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const spins = reduce ? 1 : 16;
-  for (let i = 0; i < spins; i++) {
-    if (token !== drawToken) return;
-    renderDrawWheel(shuffle(ids), true);
-    await wait(reduce ? 0 : 85);
-  }
-  if (token !== drawToken) return;
   const order = shuffle(ids);
   const rounds = roundRobin(order);
   pendingDraw = leagueFromRounds(rounds);
-  renderDrawWheel(order, false);
-  renderDrawRounds(rounds);
-  if (status) status.textContent = "Chave todos-contra-todos pronta. 5 rodadas, 10 séries, 1 folga por rodada.";
+  if (status) status.textContent = "Embaralhando o elenco...";
+  renderDrawBoard(rounds, 0);
+  renderDrawOrbit(order);
+  if (reduce) {
+    if (token !== drawToken) return;
+    renderDrawClash(rounds[rounds.length - 1]);
+    renderDrawBoard(rounds, rounds.length);
+    setDrawDots(5);
+    if (status) status.textContent = "Chave pronta. 5 rodadas, 10 séries, todo mundo joga contra todo mundo.";
+    if (ok) ok.hidden = false;
+    return;
+  }
+  await wait(2200);
+  if (token !== drawToken) return;
+  for (let i = 0; i < rounds.length; i++) {
+    if (token !== drawToken) return;
+    if (title) title.textContent = `Rodada ${i + 1} de 5`;
+    if (status) status.textContent = i === 0 ? "Primeiro confronto saindo..." : "Próxima rodada...";
+    setDrawDots(i);
+    renderDrawClash(rounds[i]);
+    renderDrawBoard(rounds, i + 1);
+    await wait(i === 0 ? 1450 : 1250);
+  }
+  if (token !== drawToken) return;
+  if (arena) arena.classList.add("is-done");
+  setDrawDots(5);
+  if (title) title.textContent = "Chave sorteada";
+  if (status) status.textContent = "Todos contra todos. 5 rodadas, 10 séries, 1 folga por rodada.";
   if (ok) ok.hidden = false;
 }
 
@@ -1130,6 +1189,14 @@ document.querySelector(".nav").addEventListener("click", (e) => {
 });
 
 document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const draw = document.getElementById("draw-modal");
+    if (draw && !draw.hidden) {
+      pendingDraw = null;
+      openDrawModal(false);
+      return;
+    }
+  }
   if (e.target.matches("input, textarea, select")) return;
   const map = { 1: "liga", 2: "tabela", 3: "playoffs", 4: "murais", 5: "players" };
   if (map[e.key]) showTab(map[e.key]);

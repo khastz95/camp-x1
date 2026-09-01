@@ -74,13 +74,19 @@
       </div>
     </form>
   </div>
-  <div id="draw-modal" class="modal" hidden>
-    <div class="modal-card draw-card">
-      <h3>Sorteio da liga</h3>
-      <p id="draw-status">Embaralhando o elenco...</p>
-      <div id="draw-wheel" class="draw-wheel"></div>
-      <div id="draw-rounds" class="draw-rounds"></div>
-      <div class="modal-actions">
+  <div id="draw-modal" class="modal draw-overlay" hidden>
+    <div class="draw-stage">
+      <header class="draw-top">
+        <small>Eternal Pratas · Closed</small>
+        <h3 id="draw-title">Sorteio da liga</h3>
+        <p id="draw-status">Embaralhando o elenco...</p>
+        <div id="draw-dots" class="draw-dots" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+      </header>
+      <div id="draw-arena" class="draw-arena"></div>
+      <div id="draw-rounds" class="draw-board"></div>
+      <div class="draw-actions">
         <button type="button" id="draw-cancel">Cancelar</button>
         <button type="button" id="draw-ok" hidden>Usar essa chave</button>
       </div>

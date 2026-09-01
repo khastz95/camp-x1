@@ -15,6 +15,12 @@
   --page-w: 1240px;
 }
 
+@property --spin {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
@@ -1079,65 +1085,297 @@ table.t td.d { color: var(--shame); }
   white-space: nowrap;
 }
 .draw-btn:hover { filter: brightness(1.08); }
-.draw-card { width: min(640px, 100%); }
-.draw-wheel {
+
+body.draw-open { overflow: hidden; }
+.draw-overlay {
+  background:
+    radial-gradient(70% 60% at 50% 0%, rgba(62, 199, 255, 0.16), transparent 55%),
+    rgba(4, 10, 16, 0.88);
+  backdrop-filter: blur(14px);
+  padding: 16px;
+  overflow: auto;
+}
+.draw-stage {
+  width: min(920px, 100%);
+  margin: auto;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(18, 32, 51, 0.96), rgba(8, 16, 26, 0.98));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px 22px 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(62, 199, 255, 0.08);
+}
+.draw-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(62, 199, 255, 0.05) 1px, transparent 1px);
+  background-size: 100% 7px;
+  opacity: 0.35;
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.5), transparent 70%);
+}
+.draw-top {
+  position: relative;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.draw-top small {
+  display: block;
+  color: var(--cyan);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+.draw-top h3 {
+  font-family: Rajdhani, sans-serif;
+  font-size: 34px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 4px 0 2px;
+}
+.draw-top p {
+  color: var(--mute);
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+.draw-dots {
   display: flex;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  min-height: 88px;
-  margin: 4px 0 16px;
-}
-.draw-wheel.is-spin .pic { animation: drawPop 0.18s ease-in-out infinite alternate; }
-.draw-rounds {
-  display: grid;
   gap: 8px;
-  max-height: 42vh;
-  overflow: auto;
-  margin-bottom: 14px;
 }
-.draw-round {
+.draw-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2a3d58;
+  display: block;
+  transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+.draw-dots i.is-done { background: var(--cyan); }
+.draw-dots i.is-on {
+  background: var(--gold);
+  transform: scale(1.35);
+  box-shadow: 0 0 12px rgba(232, 197, 107, 0.7);
+}
+
+.draw-arena {
+  position: relative;
+  min-height: 280px;
+  margin: 8px 0 16px;
+}
+.draw-orbit {
+  --spin: 0deg;
+  position: relative;
+  width: min(340px, 78vw);
+  height: min(340px, 78vw);
+  margin: 8px auto 0;
+  animation: orbitSpin 9s linear infinite;
+}
+.draw-orbit-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 72px;
+  height: 72px;
   display: grid;
-  grid-template-columns: 84px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 8px 10px;
-}
-.draw-round strong {
-  font-size: 12px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(62, 199, 255, 0.12);
+  border: 1px solid rgba(62, 199, 255, 0.45);
+  color: var(--cyan);
+  font-family: Rajdhani, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
   letter-spacing: 0.08em;
+  box-shadow: 0 0 28px rgba(62, 199, 255, 0.2);
+}
+.draw-sat {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 92px;
+  margin: -46px 0 0 -46px;
+  text-align: center;
+  transform: rotate(calc(var(--a) + var(--spin))) translateY(-132px) rotate(calc(-1 * (var(--a) + var(--spin))));
+}
+.draw-sat .pic { width: 76px; height: 76px; font-size: 58px; margin: 0 auto 6px; }
+.draw-sat b {
+  display: block;
+  font-size: 12px;
+  text-shadow: 0 2px 8px #000;
+}
+
+.draw-clash { display: grid; gap: 12px; }
+.draw-round-label {
+  text-align: center;
+  font-family: Rajdhani, sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.draw-round-label span { color: var(--mute); font-size: 14px; margin-left: 6px; }
+.fight {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(7, 16, 24, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.fight-p {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.fight-p.left { animation: fightInL 0.55s cubic-bezier(0.16, 1.2, 0.32, 1) both; }
+.fight-p.right { animation: fightInR 0.55s cubic-bezier(0.16, 1.2, 0.32, 1) both; }
+.fight:nth-of-type(2) .fight-p { animation-delay: 0.12s; }
+.fight:nth-of-type(2) .fight-mid { animation-delay: 0.3s; }
+.fight-p b {
+  font-size: 18px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fight-p .pic { width: 112px; height: 112px; font-size: 84px; }
+.fight-mid {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  animation: vsPop 0.5s 0.18s cubic-bezier(0.16, 1.4, 0.32, 1) both;
+}
+.fight-mid span {
+  font-family: Rajdhani, sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--cyan);
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(62, 199, 255, 0.45);
+}
+.fight-mid em { font-style: normal; color: var(--mute); font-size: 11px; letter-spacing: 0.16em; }
+.draw-bye-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px;
+  color: var(--mute);
+  animation: byeIn 0.4s 0.28s ease both;
+}
+.draw-bye-hero small {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.draw-bye-hero b { color: var(--text); font-size: 16px; }
+
+.draw-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.draw-mini {
+  background: rgba(7, 16, 24, 0.45);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  min-height: 92px;
+  opacity: 0.38;
+  transition: opacity 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+}
+.draw-mini.is-on { opacity: 1; }
+.draw-mini.is-live {
+  border-color: var(--cyan);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(62, 199, 255, 0.12);
+}
+.draw-mini strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--cyan);
+  margin-bottom: 6px;
 }
 .draw-games { display: grid; gap: 6px; }
 .draw-pair {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
-.draw-pair b { font-size: 13px; }
-.draw-vs { color: var(--mute); font-weight: 700; }
+.draw-pair b { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draw-vs { color: var(--mute); font-weight: 700; flex-shrink: 0; }
 .draw-bye {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 8px;
   color: var(--mute);
-  font-size: 12px;
+  font-size: 11px;
 }
+.draw-wait { color: var(--mute); }
+
+.draw-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.draw-actions button {
+  height: 40px;
+  padding: 0 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  font-weight: 700;
+}
+#draw-ok {
+  background: var(--cyan);
+  color: #071018;
+  border: 0;
+  animation: vsPop 0.4s cubic-bezier(0.16, 1.4, 0.32, 1) both;
+}
+
+@keyframes orbitSpin {
+  to { --spin: 360deg; }
+}
+@keyframes fightInL {
+  from { opacity: 0; transform: translateX(-70px) scale(0.86); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fightInR {
+  from { opacity: 0; transform: translateX(70px) scale(0.86); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes vsPop {
+  from { opacity: 0; transform: scale(1.8); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes byeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
 .h2h th .pic, .h2h-who .pic { margin: 0 auto 4px; }
 .h2h-who, .h2h thead th {
   font-size: 12px;
 }
 .h2h-who span, .h2h thead th span { display: block; }
-
-@keyframes drawPop {
-  from { transform: translateY(0) scale(1); }
-  to { transform: translateY(-7px) scale(1.08); }
-}
 
 .liga-facts div, .bout, .rank-card, .pcard, .br-slot, .po-seed, .seed, .h2h-wrap, .table-card {
   transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
@@ -1156,11 +1394,6 @@ input, button, .file { transition: border-color 0.2s ease, color 0.2s ease, back
 @keyframes pulseGlow {
   0%, 100% { box-shadow: 0 0 0 1px rgba(232, 197, 107, 0.3), 0 0 16px rgba(232, 197, 107, 0.08); }
   50% { box-shadow: 0 0 0 1px rgba(232, 197, 107, 0.55), 0 0 28px rgba(232, 197, 107, 0.2); }
-}
-#draw-ok {
-  background: var(--cyan);
-  color: #071018;
-  border: 0;
 }
 
 @media (min-width: 1400px) {
@@ -1216,7 +1449,12 @@ input, button, .file { transition: border-color 0.2s ease, color 0.2s ease, back
   .kd-box { flex-basis: 160px; }
   .head-row { flex-direction: column; }
   .draw-btn { width: 100%; }
-  .draw-round { grid-template-columns: 1fr; }
+  .draw-top h3 { font-size: 26px; }
+  .fight { gap: 6px; padding: 10px; }
+  .fight-p .pic { width: 76px; height: 76px; font-size: 56px; }
+  .fight-mid span { font-size: 28px; }
+  .draw-board { grid-template-columns: 1fr; }
+  .draw-sat { transform: rotate(calc(var(--a) + var(--spin))) translateY(-108px) rotate(calc(-1 * (var(--a) + var(--spin)))); }
 }
 
 @media (prefers-reduced-motion: reduce) {
