@@ -41,6 +41,64 @@ function blankMatch(meta) {
   return { ...meta, w1: "", w2: "", k1: "", d1: "", k2: "", d2: "" };
 }
 
+function shuffle(list) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function roundRobin(ids) {
+  const seats = ids.length % 2 === 1 ? [...ids, null] : [...ids];
+  const roundCount = seats.length - 1;
+  const half = seats.length / 2;
+  const arr = [...seats];
+  const rounds = [];
+  for (let r = 0; r < roundCount; r++) {
+    const games = [];
+    let bye = null;
+    for (let i = 0; i < half; i++) {
+      let a = arr[i];
+      let b = arr[arr.length - 1 - i];
+      if (a == null) bye = b;
+      else if (b == null) bye = a;
+      else {
+        if (Math.random() < 0.5) [a, b] = [b, a];
+        games.push({ p1: a, p2: b });
+      }
+    }
+    rounds.push({ round: r + 1, bye, games });
+    const fixed = arr[0];
+    const rest = arr.slice(1);
+    rest.unshift(rest.pop());
+    arr.splice(0, arr.length, fixed, ...rest);
+  }
+  return rounds;
+}
+
+function leagueFromRounds(rounds) {
+  let no = 1;
+  return rounds.flatMap((rd) => rd.games.map((g) => blankMatch({
+    id: `g${no}`,
+    round: rd.round,
+    no: no++,
+    p1: g.p1,
+    p2: g.p2,
+    bye: rd.bye,
+    bestOf: 3
+  })));
+}
+
+function leagueHasScores() {
+  return state.league.some((m) => [m.w1, m.w2, m.k1, m.d1, m.k2, m.d2].some((v) => String(v || "") !== ""));
+}
+
 function defaultState() {
   return {
     title: TITLE,
@@ -58,6 +116,8 @@ let cloud = false;
 let canEdit = true;
 let editPin = "";
 let saveTimer = 0;
+let pendingDraw = null;
+let drawToken = 0;
 
 function hydrate(parsed) {
   if (!parsed || typeof parsed !== "object") return defaultState();
@@ -194,6 +254,9 @@ function mergeMatches(defaults, saved) {
     if (!f) return d;
     return {
       ...d,
+      p1: f.p1 || d.p1,
+      p2: f.p2 || d.p2,
+      bye: f.bye || d.bye,
       w1: f.w1 ?? "",
       w2: f.w2 ?? "",
       k1: f.k1 ?? "",
@@ -227,14 +290,26 @@ function initials(name) {
 }
 
 function pic(p, cls = "") {
-  const ph = `<span class="ph" style="background:${esc(p.color || "#3ec7ff")}">${esc(initials(p.name))}</span>`;
-  if (!p.photo) return ph;
-  return `<span class="pic">${ph}<img src="${esc(p.photo)}" alt="${esc(p.name)}" /></span>`;
+  const accent = esc(p.color || "#3ec7ff");
+  const extra = cls ? ` ${cls}` : "";
+  const kind = p.photo ? "has-photo" : "no-photo";
+  const img = p.photo
+    ? `<img src="${esc(p.photo)}" alt="${esc(p.name)}" />`
+    : "";
+  return `<span class="pic ${kind}${extra}" style="--accent:${accent}" title="${esc(p.name)}"><span class="ph">${esc(initials(p.name))}</span>${img}</span>`;
 }
 
 function bindImgs() {
-  document.querySelectorAll("img:not(.logo)").forEach((img) => {
-    img.addEventListener("error", () => img.remove());
+  document.querySelectorAll(".pic img").forEach((img) => {
+    const wrap = img.closest(".pic");
+    const show = () => img.classList.add("is-on");
+    img.addEventListener("load", show);
+    img.addEventListener("error", () => {
+      img.remove();
+      wrap?.classList.remove("has-photo");
+      wrap?.classList.add("no-photo");
+    });
+    if (img.complete && img.naturalWidth) show();
   });
 }
 
@@ -388,7 +463,7 @@ function bout(m) {
 
 function renderH2H() {
   const people = state.players;
-  const head = `<th></th>${people.map((p) => `<th>${esc(p.name)}</th>`).join("")}`;
+  const head = `<th></th>${people.map((p) => `<th>${pic(p, "pic-xs")}<span>${esc(p.name)}</span></th>`).join("")}`;
   const body = people.map((row) => {
     const cells = people.map((col) => {
       if (row.id === col.id) return `<td class="self">·</td>`;
@@ -400,7 +475,7 @@ function renderH2H() {
       const txt = r.done || m.w1 !== "" || m.w2 !== "" ? `${left}x${right}` : "jogar";
       return `<td><button type="button" class="${r.done ? "done" : "wait"}" data-jump="${esc(m.id)}">${esc(txt)}</button></td>`;
     }).join("");
-    return `<tr><th>${esc(row.name)}</th>${cells}</tr>`;
+    return `<tr><th class="h2h-who">${pic(row, "pic-xs")}<span>${esc(row.name)}</span></th>${cells}</tr>`;
   }).join("");
   return `<div class="h2h-wrap"><div class="h2h-cap">Confrontos · clique no placar para ir ao jogo</div><table class="h2h"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
@@ -431,9 +506,12 @@ function renderLiga() {
     return `<div class="bye-mini"><em>R${rn}</em>${pic(bye)}<b>${esc(bye.name)}</b></div>`;
   }).join("");
   document.getElementById("tab-liga").innerHTML = `
-    <div class="head">
-      <h2>Fase de liga</h2>
-      <p>Todos contra todos. Cada série vale 1 ponto. O placar é de mapas, no formato 2x1. Em cada rodada, um jogador fica de folga.</p>
+    <div class="head head-row">
+      <div>
+        <h2>Fase de liga</h2>
+        <p>Todos contra todos. Cada série vale 1 ponto. O placar é de mapas, no formato 2x1. Em cada rodada, um jogador fica de folga. Sorteie a chave quando quiser embaralhar os confrontos.</p>
+      </div>
+      <button type="button" id="btn-draw" class="editor-only draw-btn">Sortear chave</button>
     </div>
     <div class="liga-facts">
       <div><b>10</b><span>séries no total</span></div>
@@ -484,7 +562,7 @@ function renderTabela() {
 
 function seedChip(rank, p) {
   return `<div class="seed" id="node-seed${rank}">
-    <i>${rank}</i>${p ? pic(p) : `<span class="ph" style="background:#2a3f8f">?</span>`}
+    <i>${rank}</i>${p ? pic(p) : `<span class="pic no-photo" style="--accent:#2a3f8f"><span class="ph">?</span></span>`}
     <b>${esc(p ? p.name : "Liga")}</b>
   </div>`;
 }
@@ -501,7 +579,7 @@ function bracketSlot(m, gf = false) {
     const w = sideN === 1 ? m.w1 : m.w2;
     return `
       <div class="br-row ${win ? "win" : ""} ${lose ? "lose" : ""}">
-        ${tbd ? `<span class="ph" style="background:#2a3f8f">?</span>` : pic(p)}
+        ${tbd ? `<span class="pic no-photo" style="--accent:#2a3f8f"><span class="ph">?</span></span>` : pic(p)}
         <span class="name">${esc(tbd ? "Aguardando" : p.name)}</span>
         <input data-m="${esc(m.id)}" data-f="${sideN === 1 ? "k1" : "k2"}" value="${esc(k)}" placeholder="K" inputmode="numeric" title="Kills" />
         <input data-m="${esc(m.id)}" data-f="${sideN === 1 ? "d1" : "d2"}" value="${esc(d)}" placeholder="D" inputmode="numeric" title="Deaths" />
@@ -854,7 +932,7 @@ function renderMurais() {
           <p>Aqui mora quem fechou a Grande Final. O resto que lute.</p>
         </div>
         <div class="hero glow">
-          ${champ ? pic(champ) : `<span class="ph" style="background:#2a3f8f">?</span>`}
+          ${champ ? pic(champ, "pic-lg") : `<span class="pic no-photo pic-lg" style="--accent:#2a3f8f"><span class="ph">?</span></span>`}
           <div>
             <small>${champ ? "Rei da última semana" : "Trono vazio"}</small>
             <strong>${esc(champ ? champ.name : "Aguardando a final")}</strong>
@@ -867,7 +945,7 @@ function renderMurais() {
             const n = career.find((x) => x.p.id === p.id)?.titles || 0;
             const [top, bot] = memePair("win", 0, 0, n);
             return `<article class="tile meme">
-              <div class="meme-pic">${pic(p)}<span class="meme-top">${top}</span><span class="meme-bot">${bot}</span></div>
+              <div class="meme-pic">${pic(p, "pic-wide")}<span class="meme-top">${top}</span><span class="meme-bot">${bot}</span></div>
               <p>${esc(p.name)}<small>${esc(h.label)}</small></p>
             </article>`;
           }).join("") : `<p class="hint">Nenhum título ainda. Tá todo mundo 50/50 na vida.</p>`}
@@ -895,7 +973,7 @@ function renderMurais() {
           ${career.filter((x) => x.fifth + x.vices > 0).map((x) => {
             const [top, bot] = memePair("shame", x.fifth, x.vices, 0);
             return `<article class="tile meme sad">
-              <div class="meme-pic">${pic(x.p)}<span class="meme-top">${top}</span><span class="meme-bot">${bot}</span></div>
+              <div class="meme-pic">${pic(x.p, "pic-wide")}<span class="meme-top">${top}</span><span class="meme-bot">${bot}</span></div>
               <p>${esc(x.p.name)}<small>${x.fifth} elim. · ${x.vices} vice${x.vices === 1 ? "" : "s"}</small></p>
             </article>`;
           }).join("") || `<p class="hint">Ninguém no mural. Estranho. Alguém vai cair.</p>`}
@@ -923,7 +1001,7 @@ function renderPlayers() {
     <div class="players">
       ${state.players.map((p) => `
         <article class="pcard">
-          ${pic(p)}
+          ${pic(p, "pic-xl")}
           <h3>${esc(p.name)}</h3>
           <label>Nick<input data-p="${esc(p.id)}" data-k="name" value="${esc(p.name)}" /></label>
           <label class="file photo-file editor-only">Enviar foto<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-p="${esc(p.id)}" data-k="photo-file" hidden /></label>
@@ -949,9 +1027,85 @@ function flash(msg) {
   const t = document.getElementById("toast");
   if (!t) return;
   t.textContent = msg;
-  t.classList.add("is-on");
+  t.className = "toast is-on";
   clearTimeout(flash._t);
   flash._t = setTimeout(() => t.classList.remove("is-on"), 1800);
+}
+
+function openDrawModal(show) {
+  const modal = document.getElementById("draw-modal");
+  if (!modal) return;
+  modal.hidden = !show;
+  if (!show) drawToken += 1;
+}
+
+function renderDrawWheel(ids, spinning) {
+  const wheel = document.getElementById("draw-wheel");
+  if (!wheel) return;
+  wheel.classList.toggle("is-spin", spinning);
+  wheel.innerHTML = ids.map((id) => pic(player(id), "pic-md")).join("");
+  bindImgs();
+}
+
+function renderDrawRounds(rounds) {
+  const box = document.getElementById("draw-rounds");
+  if (!box) return;
+  box.innerHTML = rounds.map((rd) => {
+    const bye = player(rd.bye);
+    const games = rd.games.map((g) => {
+      const a = player(g.p1);
+      const b = player(g.p2);
+      return `<div class="draw-pair">${pic(a, "pic-xs")}<b>${esc(a.name)}</b><span class="draw-vs">×</span>${pic(b, "pic-xs")}<b>${esc(b.name)}</b></div>`;
+    }).join("");
+    return `<article class="draw-round">
+      <strong>Rodada ${rd.round}</strong>
+      <div class="draw-games">${games}</div>
+      <div class="draw-bye">${pic(bye, "pic-xs")}<span>Folga ${esc(bye.name)}</span></div>
+    </article>`;
+  }).join("");
+  bindImgs();
+}
+
+async function startDraw() {
+  if (cloud && !canEdit) return;
+  if (leagueHasScores() && !confirm("Já tem placar nesta semana. O sorteio monta uma chave nova e zera liga e playoffs. Continuar?")) return;
+  const ids = state.players.map((p) => p.id);
+  const token = ++drawToken;
+  pendingDraw = null;
+  openDrawModal(true);
+  const status = document.getElementById("draw-status");
+  const ok = document.getElementById("draw-ok");
+  const roundsBox = document.getElementById("draw-rounds");
+  if (ok) ok.hidden = true;
+  if (roundsBox) roundsBox.innerHTML = "";
+  if (status) status.textContent = "Embaralhando o elenco...";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const spins = reduce ? 1 : 16;
+  for (let i = 0; i < spins; i++) {
+    if (token !== drawToken) return;
+    renderDrawWheel(shuffle(ids), true);
+    await wait(reduce ? 0 : 85);
+  }
+  if (token !== drawToken) return;
+  const order = shuffle(ids);
+  const rounds = roundRobin(order);
+  pendingDraw = leagueFromRounds(rounds);
+  renderDrawWheel(order, false);
+  renderDrawRounds(rounds);
+  if (status) status.textContent = "Chave todos-contra-todos pronta. 5 rodadas, 10 séries, 1 folga por rodada.";
+  if (ok) ok.hidden = false;
+}
+
+function applyDraw() {
+  if (!pendingDraw || (cloud && !canEdit)) return;
+  state.league = pendingDraw;
+  state.playoffs = playoffBlueprint().map(blankMatch);
+  pendingDraw = null;
+  openDrawModal(false);
+  save();
+  renderAll();
+  showTab("liga");
+  flash("Chave sorteada");
 }
 
 function setField(id, field, value) {
@@ -1004,6 +1158,10 @@ document.querySelector("main").addEventListener("change", (e) => {
 });
 
 document.querySelector("main").addEventListener("click", (e) => {
+  if (e.target.closest("#btn-draw")) {
+    startDraw();
+    return;
+  }
   const jump = e.target.closest("[data-jump]");
   if (!jump) return;
   const node = document.getElementById(`node-${jump.dataset.jump}`);
@@ -1041,6 +1199,22 @@ document.getElementById("btn-unlock").addEventListener("click", () => {
 document.getElementById("pin-cancel").addEventListener("click", () => openPinModal(false));
 document.getElementById("pin-modal").addEventListener("click", (e) => {
   if (e.target.id === "pin-modal") openPinModal(false);
+});
+document.getElementById("btn-draw-more").addEventListener("click", () => {
+  const more = document.querySelector(".more");
+  if (more) more.open = false;
+  startDraw();
+});
+document.getElementById("draw-cancel").addEventListener("click", () => {
+  pendingDraw = null;
+  openDrawModal(false);
+});
+document.getElementById("draw-ok").addEventListener("click", applyDraw);
+document.getElementById("draw-modal").addEventListener("click", (e) => {
+  if (e.target.id === "draw-modal") {
+    pendingDraw = null;
+    openDrawModal(false);
+  }
 });
 document.getElementById("pin-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1136,7 +1310,15 @@ document.getElementById("btn-new-week").addEventListener("click", () => {
   syncHistory();
   state.week += 1;
   state.weekLabel = `Semana ${state.week}`;
-  state.league = leagueBlueprint().map(blankMatch);
+  state.league = state.league.map((m) => blankMatch({
+    id: m.id,
+    round: m.round,
+    no: m.no,
+    p1: m.p1,
+    p2: m.p2,
+    bye: m.bye,
+    bestOf: m.bestOf || 3
+  }));
   state.playoffs = playoffBlueprint().map(blankMatch);
   save();
   renderAll();

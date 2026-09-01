@@ -44,6 +44,7 @@
           <summary>Mais</summary>
           <div class="more-panel">
             <p class="save-hint" id="save-hint">Visitantes só veem. Quem tem PIN edita para todos.</p>
+            <button type="button" id="btn-draw-more" class="editor-only">Sortear liga</button>
             <button type="button" id="btn-export">Baixar backup</button>
             <label class="file editor-only">Carregar backup<input type="file" id="input-import" accept="application/json" hidden /></label>
             <button type="button" id="btn-reset" class="danger editor-only">Zerar</button>
@@ -72,6 +73,18 @@
         <button type="submit">Entrar</button>
       </div>
     </form>
+  </div>
+  <div id="draw-modal" class="modal" hidden>
+    <div class="modal-card draw-card">
+      <h3>Sorteio da liga</h3>
+      <p id="draw-status">Embaralhando o elenco...</p>
+      <div id="draw-wheel" class="draw-wheel"></div>
+      <div id="draw-rounds" class="draw-rounds"></div>
+      <div class="modal-actions">
+        <button type="button" id="draw-cancel">Cancelar</button>
+        <button type="button" id="draw-ok" hidden>Usar essa chave</button>
+      </div>
+    </div>
   </div>
   <script src="js/app.js"></script>
 </body>
